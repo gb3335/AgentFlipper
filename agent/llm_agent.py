@@ -30,8 +30,44 @@ class UnifiedLLMAgent:
         self.response_parser = LLMResponseParser()
 
     def _load_system_prompt(self) -> str:
-        """Load the appropriate system prompt for the agent."""
-        return prompts.BASE_PROMPT
+        """Build the system prompt, adding the device's real command set.
+
+        The base identity comes from prompts.BASE_PROMPT. We then append the
+        commands discovered from the connected device's `help` output (so the
+        model only plans commands that actually exist on this firmware), plus
+        any user_prompt configured in config.yaml.
+        """
+        parts = [prompts.BASE_PROMPT]
+
+        flipper_agent = getattr(self.agent_state, "flipper_agent", None)
+        commands = getattr(flipper_agent, "available_commands", None) if flipper_agent else None
+
+        if commands:
+            parts.append(
+                "\nThe connected Flipper Zero reports the following CLI commands "
+                "(from its own `help` output):\n"
+                + ", ".join(commands)
+                + "\n\nRules for choosing commands:\n"
+                "- ONLY use commands from the list above. Do NOT invent commands.\n"
+                "- These are top-level commands; most take sub-arguments "
+                "(e.g. `led r 255`, `storage list /ext`, `subghz rx`). Use `<command> help` "
+                "or `help` if unsure of a command's syntax.\n"
+                "- There is no `wifi`/`net` command: WiFi and Bluetooth attacks require "
+                "external hardware (e.g. the WiFi dev board running Marauder) and are not "
+                "part of this CLI. If the user asks for something no listed command supports, "
+                "say so instead of guessing."
+            )
+        else:
+            parts.append(
+                "\nThe device command list could not be read. Prefer well-known Flipper Zero "
+                "CLI commands, run `help` to discover them, and do not invent commands."
+            )
+
+        user_prompt = self.config.get("llm", {}).get("user_prompt")
+        if user_prompt:
+            parts.append("\nAdditional user guidance:\n" + user_prompt.strip())
+
+        return "\n".join(parts)
         
     async def create_initial_plan(self, task_description: str) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         """Generate the initial plan (sequence of actions) for a user task."""

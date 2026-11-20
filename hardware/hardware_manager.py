@@ -1,8 +1,12 @@
 import sys
 import os
+import re
 import logging
 import time
 from typing import Dict, Any, Optional, List, Tuple
+
+# Matches ANSI escape sequences (e.g. colour codes) the Flipper CLI emits.
+ANSI_ESCAPE_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 # Path setup for PyFlipper
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +35,9 @@ class HardwareManager:
         self.port = port
         self.connection = None
         self._connected = False
+        # Populated on connect() by discovering the device's own command set.
+        self.available_commands: List[str] = []
+        self.help_text: str = ""
 
     @property
     def is_connected(self) -> bool:
@@ -83,12 +90,48 @@ class FlipperZeroManager(HardwareManager):
             
             self._connected = True
             logger.info(f"Flipper Zero connection successfully established on {self.port}")
+
+            # Discover the firmware's actual command set so the LLM plans with
+            # real commands instead of guessing (differs across official /
+            # Unleashed / Momentum firmware and installed apps).
+            self._discover_commands()
             return True
             
         except Exception as e:
             logger.error(f"Flipper Zero connection failed: {str(e)}", exc_info=True)
             self.disconnect()
             return False
+
+    def _discover_commands(self) -> None:
+        """Query the device's `help` output and parse the available commands.
+
+        Stores the cleaned help text in ``self.help_text`` and the parsed
+        command names in ``self.available_commands``. Failures are non-fatal:
+        the agent still runs, just without a firmware-specific command list.
+        """
+        try:
+            raw = self.connection._serial_wrapper.send("help")
+            help_text = ANSI_ESCAPE_RE.sub("", raw or "").replace("\r", "")
+            self.help_text = help_text
+
+            commands = []
+            for line in help_text.splitlines():
+                line = line.strip()
+                # Skip the header, the trailing hints, the prompt, and blanks.
+                if (not line or line.endswith(":") or line.startswith(">")
+                        or line.startswith("If you") or line.startswith("Find out")):
+                    continue
+                # Commands are laid out in whitespace-separated columns.
+                for token in line.split():
+                    if token not in commands:
+                        commands.append(token)
+
+            self.available_commands = commands
+            logger.info(f"Discovered {len(commands)} Flipper commands: {commands}")
+        except Exception as e:
+            logger.warning(f"Could not discover device commands via 'help': {e}", exc_info=True)
+            self.available_commands = []
+            self.help_text = ""
 
     async def send_command(self, command: str) -> str:
         """Execute a command on the Flipper Zero device - Now async"""
