@@ -189,6 +189,18 @@ class AgentFlipper(App):
         banner_content += f"✓ Flipper connect on port: {port_str}\n"
         banner_content += f"✓ LLM provider/model: {provider_model_str}\n"
         banner_content += f"✓ Context history: {tokens_str}\n"
+
+        # Show the command set discovered from the device at connect time.
+        detected = getattr(self.flipper_agent, "available_commands", []) or []
+        if detected:
+            cmds_str = f"[#2ed832]{', '.join(detected)}[/#2ed832]"
+            banner_content += f"✓ Device commands detected ({len(detected)}): {cmds_str}\n"
+            logging.getLogger("AgentFlipper").info(
+                f"Device commands detected ({len(detected)}): {', '.join(detected)}")
+        else:
+            banner_content += "⚠ No device commands detected (planner will fall back to generic guidance)\n"
+            logging.getLogger("AgentFlipper").warning("No device commands detected from `help`.")
+
         banner_content += f"{'─' * 79}\n"
 
         # Wrap the entire banner content in command class markup for consistent orange color
