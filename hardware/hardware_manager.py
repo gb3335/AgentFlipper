@@ -3,6 +3,7 @@ import os
 import re
 import logging
 import time
+import threading
 from typing import Dict, Any, Optional, List, Tuple
 
 # Matches ANSI escape sequences (e.g. colour codes) the Flipper CLI emits.
@@ -38,6 +39,9 @@ class HardwareManager:
         # Populated on connect() by discovering the device's own command set.
         self.available_commands: List[str] = []
         self.help_text: str = ""
+        # Seconds to wait for the initial serial handshake before giving up,
+        # so a Flipper in a bad CLI state can't hang startup forever.
+        self.connect_timeout: float = 15.0
 
     @property
     def is_connected(self) -> bool:
@@ -80,14 +84,39 @@ class FlipperZeroManager(HardwareManager):
                 logger.error(f"Port {self.port} does not exist or is not accessible")
                 return False
                 
-            # Assuming PyFlipper constructor is synchronous
-            self.connection = PyFlipper(com=self.port)
-            
-            # Test connection by getting device info
-            logger.debug("Testing connection by querying device info...")
-            info_result = self.connection.device_info.info()  # Test connection
-            logger.debug(f"Connection test result: {info_result}")
-            
+            # PyFlipper's serial wrapper opens the port with timeout=None and
+            # then blocks on read_until(b'>:') waiting for the welcome banner.
+            # If the Flipper CLI is in a bad state (mid-session, inside an app,
+            # or the banner was already consumed) it never sends a fresh prompt
+            # and that call hangs forever. Run the handshake under a watchdog so
+            # we fail fast with a clear message instead of freezing startup.
+            outcome: Dict[str, Any] = {}
+
+            def _open():
+                try:
+                    conn = PyFlipper(com=self.port)
+                    conn.device_info.info()  # exercises banner-skip + a real read
+                    outcome["conn"] = conn
+                except Exception as exc:  # captured, re-raised on the main thread
+                    outcome["error"] = exc
+
+            worker = threading.Thread(target=_open, name="flipper-connect", daemon=True)
+            worker.start()
+            worker.join(self.connect_timeout)
+
+            if worker.is_alive():
+                logger.error(
+                    f"Timed out after {self.connect_timeout:.0f}s connecting to Flipper on "
+                    f"{self.port}. The device CLI is not responding with a prompt - unplug "
+                    f"and replug the Flipper and return its screen to the desktop, then retry."
+                )
+                return False
+
+            if "error" in outcome:
+                raise outcome["error"]
+
+            # Test connection result already exercised inside the worker.
+            self.connection = outcome["conn"]
             self._connected = True
             logger.info(f"Flipper Zero connection successfully established on {self.port}")
 
