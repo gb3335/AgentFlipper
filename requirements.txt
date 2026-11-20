@@ -1,12 +1,16 @@
-litellm>=1.0.0
+# Floor versions match the known-good set the project is developed and tested
+# against. The langchain stack must be >=0.3 because the code imports from the
+# split-out langchain_community / langchain_huggingface packages (the 0.3-era
+# layout); older releases will fail to import.
+litellm>=1.70.0
 pyyaml>=6.0
 pyserial>=3.5
-langchain>=0.0.267
-langchain-community>=0.0.13
-sentence-transformers>=2.2.2
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-huggingface>=0.3.0
+sentence-transformers>=3.0.0
 beautifulsoup4>=4.12.2
 requests>=2.31.0
-faiss-cpu>=1.7.4
+faiss-cpu>=1.8.0
 # PyFlipper is included as a submodule
-langchain-huggingface
 textual>=0.60.0

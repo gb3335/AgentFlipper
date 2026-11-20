@@ -22,13 +22,22 @@ class AgentState:
         self.human_input_request = None # Stores details of the human input request
         
     def add_to_history(self, entry):
-        """Add entry to conversation history with optional pruning."""
-        # Basic implementation, pruning can be added later
+        """Add entry to conversation history, pruning oldest entries to stay
+        within the configured token budget.
+
+        Smaller prompts mean faster LLM calls; on long multi-step tasks an
+        unbounded history would keep growing every reflection round and slow
+        each call down. Tokens are approximated as characters / 4.
+        """
         self.conversation_history.append(entry)
-        # Example pruning: Keep last N messages
-        # MAX_HISTORY_LEN = self.config.get("max_history_length", 50)
-        # if len(self.conversation_history) > MAX_HISTORY_LEN:
-        #     self.conversation_history = self.conversation_history[-MAX_HISTORY_LEN:]
+
+        max_tokens = self.config.get("llm", {}).get("max_history_tokens", 6000)
+        char_budget = max(1000, max_tokens * 4)
+        total = sum(len(str(e.get("content", ""))) for e in self.conversation_history)
+        # Keep at least the most recent entry even if it alone exceeds the budget.
+        while len(self.conversation_history) > 1 and total > char_budget:
+            removed = self.conversation_history.pop(0)
+            total -= len(str(removed.get("content", "")))
         
     def update_context(self, key, value):
         """Update a value in the context buffer."""

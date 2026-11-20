@@ -245,10 +245,19 @@ class UnifiedLLMAgent:
         
         # Clean up None values
         api_params = {k: v for k, v in api_params.items() if v is not None}
-        
+
         # Format the full model name
         if self.provider == "ollama":
             full_model = f"ollama/{self.model}"
+            # Ollama-specific tuning (big latency win for the local model):
+            # - keep_alive keeps the model resident between the plan and reflect
+            #   calls instead of unloading and paying a multi-second reload each
+            #   turn.
+            # - num_ctx sizes the context window so the system prompt + history
+            #   are not silently truncated (truncation causes bad plans and
+            #   extra replanning round-trips).
+            api_params.setdefault("keep_alive", llm_config.get("keep_alive", "10m"))
+            api_params.setdefault("num_ctx", llm_config.get("num_ctx", 8192))
         else:
             full_model = f"{self.provider}/{self.model}"
             

@@ -153,11 +153,17 @@ class FlipperZeroManager(HardwareManager):
             response = self.connection._serial_wrapper.send(command)
             logger.info(f"Command response: {response}")
 
-            # Handle empty responses and device prompts
-            cleaned_response = response.strip()
-            if not cleaned_response or cleaned_response in [">", ">:"]:
+            # Clean the raw serial output before it reaches the LLM: strip ANSI
+            # colour codes and the trailing CLI prompt. Raw escape sequences
+            # (e.g. "\x1b[31m...\x1b[0m\r\n>:") waste tokens and confuse the
+            # model during reflection.
+            cleaned_response = ANSI_ESCAPE_RE.sub("", response or "").replace("\r", "")
+            # Drop a trailing device prompt line such as ">: ".
+            cleaned_response = re.sub(r"\n?>:?\s*$", "", cleaned_response).strip()
+
+            if not cleaned_response:
                 return "Command executed successfully"
-            return response
+            return cleaned_response
             
         except AttributeError as e:
             error_msg = f"Connection appears broken (missing _serial_wrapper): {str(e)}"

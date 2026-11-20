@@ -13,6 +13,15 @@ llm:
   api_base: http://localhost:11434
   # Timeout for LLM requests in seconds
   timeout: 300
+  # (Ollama) How long to keep the model loaded in memory between calls.
+  # Keeps the model warm across the plan/reflect cycle instead of reloading
+  # it each turn. Use a duration ("10m"), 0 to unload immediately, or -1 to
+  # keep it loaded indefinitely.
+  keep_alive: 10m
+  # (Ollama) Context window size in tokens. Large enough to hold the system
+  # prompt (with the device's command list) plus conversation history without
+  # truncation. Raise for very long sessions; higher values use more memory.
+  num_ctx: 8192
   # Maximum token count for conversation history (industry best practice)
   # Older messages will be removed to stay under this limit
   max_history_tokens: 6000
