@@ -146,6 +146,7 @@ fi
 echo -e "\n${PURPLE}Starting AgentFlipper...${NC}"
 # Execute main.py directly
 # Pass all remaining arguments ($@) directly to the main.py script
+mkdir -p "$SCRIPT_DIR/logs"
 python main.py "$@" > "$SCRIPT_DIR/logs/agent_flipper_tui_$(date +'%Y%m%d_%H%M%S').log"
 
 # The script finishes here after main.py exits
