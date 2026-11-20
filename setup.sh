@@ -68,16 +68,15 @@ if [ ! -d "$SCRIPT_DIR/pyFlipper/src/pyflipper" ]; then
         git init
     fi
     
-    if [ -d "$SCRIPT_DIR/pyFlipper" ]; then
-        echo -e "${YELLOW}Removing existing pyFlipper directory...${NC}"
-        rm -rf "$SCRIPT_DIR/pyFlipper"
+    # Only add the submodule if the repo doesn't already register it
+    # (a fresh clone of this repo already has it in .gitmodules and the index).
+    if ! git -C "$SCRIPT_DIR" ls-files --error-unmatch pyFlipper >/dev/null 2>&1; then
+        echo -e "${YELLOW}Adding PyFlipper as a submodule...${NC}"
+        git -C "$SCRIPT_DIR" submodule add https://github.com/wh00hw/pyFlipper.git pyFlipper
     fi
-    
-    echo -e "${YELLOW}Adding PyFlipper as a submodule...${NC}"
-    git submodule add https://github.com/wh00hw/pyFlipper.git
-    
+
     echo -e "${YELLOW}Updating submodules...${NC}"
-    git submodule update --init --recursive
+    git -C "$SCRIPT_DIR" submodule update --init --recursive
 else
     echo -e "${GREEN}PyFlipper submodule already initialized.${NC}"
 fi
@@ -88,9 +87,8 @@ pip install -e ./pyFlipper
 
 # Make scripts executable
 echo -e "\n${YELLOW}Making scripts executable...${NC}"
-chmod +x flipper_agent_with_rag.py
-chmod +x flipper_docs_loader.py
-chmod +x run.sh
+chmod +x "$SCRIPT_DIR/main.py"
+chmod +x "$SCRIPT_DIR/run.sh"
 
 echo -e "\n${GREEN}======================================${NC}"
 echo -e "${GREEN}  Setup completed successfully!  ${NC}"
@@ -99,5 +97,5 @@ echo -e "${YELLOW}To run the Flipper Zero AI Agent, use:${NC}"
 echo -e "${GREEN}  ./run.sh${NC}"
 echo -e "${YELLOW}Or activate the virtual environment manually:${NC}"
 echo -e "${GREEN}  source venv/bin/activate${NC}"
-echo -e "${GREEN}  ./flipper_agent_with_rag.py${NC}"
+echo -e "${GREEN}  python main.py${NC}"
 echo -e "${GREEN}======================================${NC}"

@@ -112,8 +112,8 @@ source "$VENV_DIR/bin/activate"
 # Check if documentation has been downloaded, and download if needed
 # Only check if RAG is NOT explicitly disabled via --no-rag passed to main.py
 # and download is NOT skipped via script options (--skip-docs, --no-rag-download).
-DOCS_DIR="$SCRIPT_DIR/docs"
-VECTOR_STORE_PATH="$DOCS_DIR/flipper_cli_faiss" # Assuming this is the path used by docs_loader.py
+DOCS_DIR="$SCRIPT_DIR/rag/docs"
+VECTOR_STORE_PATH="$DOCS_DIR/flipper_cli_faiss" # Must match VECTOR_STORE_PATH in rag/docs_loader.py and rag/rag_retriever.py
 
 # Check if --no-rag is among the arguments passed to the script *before* passing them to main.py
 # This allows the script to potentially skip the doc download if RAG is disabled in main.py.
@@ -129,8 +129,8 @@ done
 if [ "$SKIP_DOCS" = false ] && [ "$NO_RAG_FLAG_PRESENT_FOR_MAIN" = false ]; then
      if [ ! -d "$VECTOR_STORE_PATH" ]; then
         echo -e "\n${GREEN}Documentation vector store not found. Downloading and processing documentation...${NC}"
-        # Need to run docs_loader.py with python from the activated venv
-        python "$SCRIPT_DIR/docs_loader.py"
+        # Run as a module from the repo root so its `ui.*` imports resolve
+        (cd "$SCRIPT_DIR" && python -m rag.docs_loader)
     else
         echo -e "\n${GREEN}Documentation vector store found. Skipping download check.${NC}"
         echo -e "${GREEN}(Use -s, --skip-docs, or --no-rag-download script options to skip this check)${NC}"
